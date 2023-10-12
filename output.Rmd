@@ -1,0 +1,81 @@
+---
+title: "Analysis of Book Review Data"
+author: "Ben Lortie, Kamryn Chavez, Brett Lobsinger"
+date: "2023-10-12"
+output: html_document
+---
+
+##Analyzing Book Data in R
+```{r cars}
+#Load packages
+library(dplyr)
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(ggplot2)
+library(ggthemes)
+
+#Connect to database
+odbcListDrivers()
+con <- DBI::dbConnect(odbc(),
+                      Driver = "ODBC Driver 17 for SQL Server",
+                      Server = "mcobsql.business.nd.edu",
+                      UID = "MSBAstudent",
+                      PWD = "SQL%database!Mendoza",
+                      Port = 3306, 
+                      Database = "BookReviews")
+
+#Check fields in the tables
+dbListFields(con, "books")
+dbListFields(con, "reviews")
+
+#Query for average rating for each book
+select_q <- dbSendQuery(
+  conn = con, 
+  statement = "SELECT b.BookID, b.Title,  AVG(r.Rating) as AverageRating
+  FROM books b
+  INNER JOIN reviews r
+  ON r.BookID = b.BookID
+  GROUP BY b.BookID, b.Title, CONCAT(b.AuthorFirstName, ' ', b.AuthorLastName)"
+)
+
+#Call out the table
+avg_ratings <- dbFetch(select_q)
+avg_ratings
+
+#Plot the data
+ggplot(avg_ratings, aes(Title, AverageRating))+
+  geom_col(fill = c("#cfb991", "#8e8f94", "#b83d30"))+
+  labs(title = "Average Rating for Select Books", x = "Title", y = "Average Rating")+
+  theme_few()
+
+#Query for individual reviews
+select_2 <- dbSendQuery(
+  conn = con, 
+  statement = "SELECT b.BookID, b.Title, r.Rating
+  FROM books b
+  INNER JOIN reviews r
+  ON r.BookID = b.BookID"
+)
+
+#Call out the table
+num_ratings <- dbFetch(select_2)
+num_ratings
+
+#Manipulate the data
+summarized_data <- num_ratings %>% 
+  group_by(Title, Rating) %>% 
+  mutate(Rating = as.factor(Rating)) %>% 
+  summarise(total = n())
+
+#Call out the table
+summarized_data
+
+#Plot the manipulated data
+ggplot(summarized_data, aes(Title, total, fill = Rating))+
+  geom_col(position = "stack")+
+  scale_fill_brewer(palette = "RdYlGn") +
+  labs(title = "Number of Rating for Select Books", x = "Title", y = "Number of Ratings")+
+  theme_few()
+
+```
